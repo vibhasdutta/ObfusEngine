@@ -22,6 +22,7 @@ import pyperclip
 class ObfuscationTool:
     def __init__(self):
         self.console = Console()
+        self.script_dir = Path(__file__).parent.resolve()
         self.techniques_info = {
             'invoke': {
                 'name': 'Invoke-PSObfuscation',
@@ -77,7 +78,10 @@ class ObfuscationTool:
         )
         self.console.print(panel)
         self.console.print()
-
+        
+    def get_base_dir(self):
+        return self.script_dir
+    
     def show_techniques_menu(self):
         #Display available obfuscation techniques in a table
         table = Table(title="🛠️  Available Obfuscation Techniques", show_header=True, header_style="bold magenta")
@@ -164,6 +168,11 @@ class ObfuscationTool:
         # Step 3: Output settings
         self.console.print("\n[bold blue]Step 3:[/] Output configuration")
         args.output_name = Prompt.ask("[green]Output filename[/]", default="obfuscated.ps1")
+        if not Path(output_name).suffix:
+            output_name += ".ps1"
+            self.console.print(f"[dim]No extension provided, using: {output_name}[/]")
+
+        args.output_name = output_name
         args.encode = Confirm.ask("[green]Base64 encode the output?[/]", default=False)
         args.view = Confirm.ask("[green]Show script contents after obfuscation?[/]", default=True)
         
@@ -441,7 +450,7 @@ Report bugs: https://github.com/vibhasdutta/ObfusEngine/issues
     # Output options
     output_group = parser.add_argument_group('Output Options')
     output_group.add_argument("-d", "--directory", default=str(Path.cwd()), help="Working directory")
-    output_group.add_argument("-oN", "--output-name", default="obfuscated.ps1", help="Output filename")
+    output_group.add_argument("-oN", "--output-name", default="obfuscated.ps1", help="Output filename (defaults to .ps1 if no extension given)")
     output_group.add_argument("-e", "--encode", action="store_true", help="Base64 encode the output")
     output_group.add_argument("-v", "--view", action="store_true", help="Show script contents verbosely")
     
@@ -450,6 +459,9 @@ Report bugs: https://github.com/vibhasdutta/ObfusEngine/issues
 def main():
     tool = ObfuscationTool()
     args = setup_argparse()
+     # Add default .ps1 extension if none provided
+    if not Path(args.output_name).suffix:
+        args.output_name += ".ps1"
     
     # Interactive mode is now default - only skip if specific args provided
     if not (args.technique and (args.input_script or args.hxshell or (args.ip and args.port))):
@@ -466,8 +478,8 @@ def main():
         sys.exit(1)
     
     # Setup directories
-    base_dir = Path(args.directory).resolve()
-    workspace = base_dir / "ObfusWorkspace"
+    base_dir = tool.get_base_dir()  # Use script location instead of current directory
+    workspace = Path(args.directory).resolve() / "ObfusWorkspace"  # Keep workspace in current dir
     workspace.mkdir(parents=True, exist_ok=True)
     
     # Validate environment

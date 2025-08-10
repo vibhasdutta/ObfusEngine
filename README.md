@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="Banner_img/Banner.webp" alt="ObfusEngine Banner" width="1000"/>
+  <img src="Banner_img/Banner.webp" alt="obfusengine Banner" width="1000"/>
 </p>
 
 ![Version](https://img.shields.io/badge/version-v1.0.0-blue)
@@ -8,7 +8,7 @@
 ![Status](https://img.shields.io/badge/Status-Active-success)
 [![License](https://img.shields.io/badge/License-BSD_2--Clause-orange.svg)](https://opensource.org/licenses/BSD-2-Clause)
 
-> **ObfusEngine** is a modular script obfuscation and payload generation engine for red team operators, security researchers, and offensive tool developers.  
+> **obfusengine** is a modular script obfuscation and payload generation engine for red team operators, security researchers, and offensive tool developers.  
 > It supports multi-layered PowerShell obfuscation techniques, reverse shell generation, and clipboard-based payload obfuscation with a clean TUI powered by `rich`.
 
 ---
@@ -49,25 +49,32 @@
 - Python 3.9+
 - PowerShell Core (`pwsh`)
 - Git & pip
-- Install Python dependencies:
+
+### Run this command :
 ```bash
-pip install -r requirements.txt
+chmod +x setup.sh
+```
+```bash
+sudo ./setup.sh
 ```
 
 ---
 
 ### 🖥️ Usage
 
+```bash
+use either: obfusegine <or> obfus
+```
 #### 🔁 Interactive Mode
 
 ```bash
-python3 Obfusengine.py
+obfusengine 
 ```
 
 #### ⚙️ Command-Line Mode
 
 ```bash
-python3 Obfusengine.py -I script.ps1 -t invoke,xencrypt -oN out.ps1 -e -v
+obfusengine -I script.ps1 -t invoke,xencrypt -oN out.ps1 -e -v
 ```
 
 #### 📋 Obfuscate Raw HoaxShell Payload 
@@ -75,13 +82,13 @@ python3 Obfusengine.py -I script.ps1 -t invoke,xencrypt -oN out.ps1 -e -v
 hoaxshell -s <ip> -r
 ```
 ```bash
-python3 Obfusengine.py --hxshell -t all -e
+obfusengine --hxshell -t all -e
 ```
 
 #### 🦠 Reverse Shell Generator + Obfuscator
 
 ```bash
-python3 Obfusengine.py -i 192.168.1.100 -p 4444 -t all
+obfusengine -i 192.168.1.100 -p 4444 -t all
 ```
 
 ---
@@ -89,14 +96,14 @@ python3 Obfusengine.py -i 192.168.1.100 -p 4444 -t all
 ## 🆘 Help Menu
 
 ```text
-usage: Obfusengine.PY [-h] [-I INPUT_SCRIPT] [-i IP] [-p PORT] [--hxshell] [-t TECHNIQUE] [--version]
+usage: obfusengine.PY [-h] [-I INPUT_SCRIPT] [-i IP] [-p PORT] [--hxshell] [-t TECHNIQUE] [--version]
                       [-d DIRECTORY] [-oN OUTPUT_NAME] [-e] [-v]
 
-🔒 ObfusEngine v1.0.0 - Advanced Script Obfuscation Engine
+🔒 obfusengine v1.0.0 - Advanced Script Obfuscation Engine
 Generates and obfuscates scripts for red team operations
 
 Author: Vibhas Dutta
-GitHub: https://github.com/vibhasdutta/ObfusEngine
+GitHub: https://github.com/vibhasdutta/obfusengine
 
 options:
   -h, --help            show this help message and exit
@@ -122,22 +129,22 @@ Output Options:
   -v, --view            Show script contents verbosely
 
 Examples:
-  Obfusengine.PY                                         # Interactive mode (default)
-  Obfusengine.PY -i 192.168.1.10 -p 4444 -t all        # Generate & obfuscate reverse shell
-  Obfusengine.PY -I script.ps1 -t invoke,chameleon      # Obfuscate existing script
-  Obfusengine.PY --hxshell -t all -e                    # Use Hoaxshell Payload content with all techniques  
-  Obfusengine.PY -I payload.py -t pyfuscation -e -v     # Obfuscate with encoding and view
+  obfusengine.PY                                         # Interactive mode (default)
+  obfusengine.PY -i 192.168.1.10 -p 4444 -t all        # Generate & obfuscate reverse shell
+  obfusengine.PY -I script.ps1 -t invoke,chameleon      # Obfuscate existing script
+  obfusengine.PY --hxshell -t all -e                    # Use Hoaxshell Payload content with all techniques  
+  obfusengine.PY -I payload.py -t pyfuscation -e -v     # Obfuscate with encoding and view
 
 Note: Interactive mode launches automatically when sufficient arguments aren't provided.
 
-Report bugs: https://github.com/vibhasdutta/ObfusEngine/issues
+Report bugs: https://github.com/vibhasdutta/obfusengine/issues
 ```
 
 ---
 
 ## ❤️ Credits & Inspirations
 
-ObfusEngine builds on the hard work of these incredible projects:
+obfusengine builds on the hard work of these incredible projects:
 
 | Project             | Author / Repo                                                              | Purpose                                           |
 |---------------------|----------------------------------------------------------------------------|---------------------------------------------------|
