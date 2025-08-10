@@ -29,6 +29,13 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# Check shell compatibility
+print_status "Checking shell compatibility..."
+if [[ -z "$BASH_VERSION" ]]; then
+    print_error "This script requires Bash shell"
+    exit 1
+fi
+
 # Banner
 echo -e "${BLUE}"
 cat << "EOF"
@@ -38,6 +45,9 @@ cat << "EOF"
 ╚═══════════════════════════════════════════╝
 EOF
 echo -e "${NC}"
+
+# Initialize flags
+USE_VENV=false
 
 # Check if running as root for global installation
 if [[ $EUID -eq 0 ]]; then
@@ -87,6 +97,14 @@ fi
 PYTHON_VERSION=$(python3 --version | grep -oP '\d+\.\d+')
 print_success "Python 3 found (version: $PYTHON_VERSION)"
 
+# Validate Python version (require 3.6+)
+if python3 -c "import sys; exit(0 if sys.version_info >= (3, 6) else 1)" 2>/dev/null; then
+    print_success "Python version is compatible"
+else
+    print_error "Python 3.6 or higher is required"
+    exit 1
+fi
+
 # Check for pip and install if needed
 print_status "Checking pip installation..."
 if ! command -v pip3 &> /dev/null && ! python3 -m pip --version &> /dev/null; then
@@ -116,20 +134,31 @@ fi
 
 print_success "pip found"
 
-# Check for PowerShell Core
-print_status "Checking PowerShell Core..."
-if ! command -v pwsh &> /dev/null; then
-    print_warning "PowerShell Core (pwsh) not found!"
-    print_warning "Some obfuscation techniques require PowerShell Core"
-    print_warning "Install it with: https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-linux"
-else
-    print_success "PowerShell Core found"
-fi
+# Enhanced PowerShell check
+check_powershell() {
+    print_status "Checking PowerShell Core..."
+    if command -v pwsh &> /dev/null; then
+        PS_VERSION=$(pwsh -Command '$PSVersionTable.PSVersion.Major' 2>/dev/null || echo "unknown")
+        if [[ "$PS_VERSION" =~ ^[0-9]+$ ]] && [[ $PS_VERSION -ge 6 ]]; then
+            print_success "PowerShell Core $PS_VERSION found"
+            return 0
+        else
+            print_warning "PowerShell version $PS_VERSION may be too old (need 6+)"
+        fi
+    else
+        print_warning "PowerShell Core (pwsh) not found!"
+        print_warning "Some obfuscation techniques require PowerShell Core"
+        print_warning "Install it with: https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-linux"
+    fi
+    return 1
+}
+
+check_powershell
 
 # Detect if we're in an externally managed environment (PEP 668)
 EXTERNALLY_MANAGED=false
 if python3 -c "import sys; exit(0 if hasattr(sys, 'base_prefix') else 1)" 2>/dev/null; then
-    if [ -f "/usr/lib/python*/EXTERNALLY-MANAGED" ] || [ -f "/usr/lib/python*/dist-packages/EXTERNALLY-MANAGED" ]; then
+    if [ -f "/usr/lib/python*/EXTERNALLY-MANAGED" ] || [ -f "/usr/lib/python*/dist-packages/EXTERNALLY-MANAGED" ] 2>/dev/null; then
         EXTERNALLY_MANAGED=true
         print_warning "Detected externally managed Python environment (PEP 668)"
     fi
@@ -198,19 +227,20 @@ install_system_package() {
     return 1
 }
 
-for req in "${REQUIREMENTS[@]}"; do
-    print_status "Installing $req..."
+# Enhanced package installation with better error handling
+install_python_package() {
+    local req=$1
     
     # Check if already installed
     if python3 -c "import $req" 2>/dev/null; then
         print_success "$req already installed"
-        continue
+        return 0
     fi
     
     # Try system package first (for Kali/Debian/Ubuntu)
     if install_system_package "$req"; then
         print_success "$req installed via system package manager"
-        continue
+        return 0
     fi
     
     # For externally managed environments, try pipx or venv
@@ -221,77 +251,99 @@ for req in "${REQUIREMENTS[@]}"; do
         VENV_PATH="$INSTALL_DIR/venv"
         if [[ ! -d "$VENV_PATH" ]]; then
             print_status "Creating virtual environment..."
-            python3 -m venv "$VENV_PATH"
+            if ! python3 -m venv "$VENV_PATH"; then
+                print_error "Failed to create virtual environment"
+                return 1
+            fi
         fi
         
         # Install in virtual environment
-        if "$VENV_PATH/bin/pip" install "$req" --quiet; then
+        if "$VENV_PATH/bin/pip" install "$req" --quiet 2>/dev/null; then
             print_success "$req installed in virtual environment"
             USE_VENV=true
-            continue
+            return 0
         fi
         
         # Try with --break-system-packages as last resort
         print_warning "Trying with --break-system-packages (not recommended)..."
-        if python3 -m pip install --user "$req" --break-system-packages --quiet; then
+        if python3 -m pip install --user "$req" --break-system-packages --quiet 2>/dev/null; then
             print_success "$req installed (with --break-system-packages)"
-            continue
+            return 0
         fi
     else
         # Standard installation methods for non-externally managed environments
         
         # Try primary method
-        if python3 -m pip install --user "$req" --no-warn-script-location --quiet; then
+        if python3 -m pip install --user "$req" --no-warn-script-location --quiet 2>/dev/null; then
             print_success "$req installed successfully"
-            continue
+            return 0
         fi
         
         # Try alternative method
-        if pip3 install --user "$req" --no-warn-script-location --quiet; then
+        if command -v pip3 &> /dev/null && pip3 install --user "$req" --no-warn-script-location --quiet 2>/dev/null; then
             print_success "$req installed (alternative method)"
-            continue
+            return 0
         fi
         
         # Try without --user flag (for virtual environments)
-        if python3 -m pip install "$req" --quiet; then
+        if python3 -m pip install "$req" --quiet 2>/dev/null; then
             print_success "$req installed (system/venv method)"
-            continue
+            return 0
         fi
     fi
     
-    # All methods failed
-    print_error "Failed to install $req"
-    print_error ""
-    print_error "Manual installation options:"
-    print_error "1. System package: sudo apt install python3-$req"
-    print_error "2. Virtual environment: python3 -m venv myenv && myenv/bin/pip install $req"
-    print_error "3. Break system packages: python3 -m pip install --user $req --break-system-packages"
-    print_error "4. Use pipx: pipx install $req"
-    exit 1
+    return 1
+}
+
+# Install each requirement
+for req in "${REQUIREMENTS[@]}"; do
+    print_status "Installing $req..."
+    
+    if ! install_python_package "$req"; then
+        # All methods failed
+        print_error "Failed to install $req"
+        print_error ""
+        print_error "Manual installation options:"
+        print_error "1. System package: sudo apt install python3-$req"
+        print_error "2. Virtual environment: python3 -m venv myenv && myenv/bin/pip install $req"
+        print_error "3. Break system packages: python3 -m pip install --user $req --break-system-packages"
+        print_error "4. Use pipx: pipx install $req"
+        exit 1
+    fi
 done
 
-# Create installation directory
+# Create installation directory with proper error handling
 print_status "Creating installation directory..."
-mkdir -p "$INSTALL_DIR"
+if ! mkdir -p "$INSTALL_DIR" 2>/dev/null; then
+    print_error "Failed to create installation directory: $INSTALL_DIR"
+    exit 1
+fi
 
-# Copy ObfusEngine files
+# Copy ObfusEngine files with error handling
 print_status "Copying ObfusEngine files..."
-cp -r "$CURRENT_DIR"/* "$INSTALL_DIR/"
-print_success "Files copied to $INSTALL_DIR"
+if cp -r "$CURRENT_DIR"/* "$INSTALL_DIR/" 2>/dev/null; then
+    print_success "Files copied to $INSTALL_DIR"
+else
+    print_error "Failed to copy files to $INSTALL_DIR"
+    print_error "Check permissions and disk space"
+    exit 1
+fi
 
 # Make ObfusEngine.py executable
-chmod +x "$INSTALL_DIR/ObfusEngine.py"
+if ! chmod +x "$INSTALL_DIR/ObfusEngine.py" 2>/dev/null; then
+    print_warning "Could not make ObfusEngine.py executable"
+fi
 
 # Create wrapper script (handle virtual environment if used)
 print_status "Creating global wrapper script..."
 
 # Ensure BIN_DIR exists and is writable
 if [[ ! -d "$BIN_DIR" ]]; then
-    mkdir -p "$BIN_DIR" 2>/dev/null || {
+    if ! mkdir -p "$BIN_DIR" 2>/dev/null; then
         print_error "Cannot create directory $BIN_DIR"
         print_error "Try running with sudo for system-wide installation"
         exit 1
-    }
+    fi
 fi
 
 if [[ ! -w "$BIN_DIR" ]]; then
@@ -300,79 +352,48 @@ if [[ ! -w "$BIN_DIR" ]]; then
     exit 1
 fi
 
-if [[ "$USE_VENV" == "true" ]]; then
-    # Use virtual environment Python
-    cat > "$BIN_DIR/obfusengine" << EOF
-#!/bin/bash
-# ObfusEngine Global Wrapper Script (with virtual environment)
-cd "$INSTALL_DIR"
-# Create a temporary script with the correct name for argparse
-cp "$INSTALL_DIR/ObfusEngine.py" "/tmp/obfusengine.py" 2>/dev/null || true
-if [[ -f "/tmp/obfusengine.py" ]]; then
-    "$INSTALL_DIR/venv/bin/python" "/tmp/obfusengine.py" "\$@"
-    rm -f "/tmp/obfusengine.py"
-else
-    "$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/ObfusEngine.py" "\$@"
-fi
-EOF
+# Create wrapper scripts with better error handling
+create_wrapper() {
+    local wrapper_name=$1
+    local prog_name=$2
     
-    cat > "$BIN_DIR/obfus" << EOF
+    if [[ "$USE_VENV" == "true" ]]; then
+        # Use virtual environment Python
+        cat > "$BIN_DIR/$wrapper_name" << EOF
 #!/bin/bash
-# ObfusEngine Short Alias (with virtual environment)
-cd "$INSTALL_DIR"
-# Create a temporary script with the correct name for argparse
-cp "$INSTALL_DIR/ObfusEngine.py" "/tmp/obfus.py" 2>/dev/null || true
-if [[ -f "/tmp/obfus.py" ]]; then
-    "$INSTALL_DIR/venv/bin/python" "/tmp/obfus.py" "\$@"
-    rm -f "/tmp/obfus.py"
-else
-    "$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/ObfusEngine.py" "\$@"
-fi
+# ObfusEngine Wrapper Script (with virtual environment)
+export OBFUS_PROG_NAME="$prog_name"
+cd "$INSTALL_DIR" || exit 1
+"$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/ObfusEngine.py" "\$@"
 EOF
-else
-    # Use system Python
-    cat > "$BIN_DIR/obfusengine" << EOF
+    else
+        # Use system Python
+        cat > "$BIN_DIR/$wrapper_name" << EOF
 #!/bin/bash
-# ObfusEngine Global Wrapper Script
-cd "$INSTALL_DIR"
-# Create a temporary script with the correct name for argparse
-cp "$INSTALL_DIR/ObfusEngine.py" "/tmp/obfusengine.py" 2>/dev/null || true
-if [[ -f "/tmp/obfusengine.py" ]]; then
-    python3 "/tmp/obfusengine.py" "\$@"
-    rm -f "/tmp/obfusengine.py"
-else
-    python3 "$INSTALL_DIR/ObfusEngine.py" "\$@"
-fi
+# ObfusEngine Wrapper Script
+export OBFUS_PROG_NAME="$prog_name"
+cd "$INSTALL_DIR" || exit 1
+python3 "$INSTALL_DIR/ObfusEngine.py" "\$@"
 EOF
+    fi
     
-    cat > "$BIN_DIR/obfus" << EOF
-#!/bin/bash
-# ObfusEngine Short Alias
-cd "$INSTALL_DIR"
-# Create a temporary script with the correct name for argparse
-cp "$INSTALL_DIR/ObfusEngine.py" "/tmp/obfus.py" 2>/dev/null || true
-if [[ -f "/tmp/obfus.py" ]]; then
-    python3 "/tmp/obfus.py" "\$@"
-    rm -f "/tmp/obfus.py"
-else
-    python3 "$INSTALL_DIR/ObfusEngine.py" "\$@"
-fi
-EOF
-fi
-
-# Make wrapper executable
-chmod +x "$BIN_DIR/obfusengine" 2>/dev/null || {
-    print_error "Cannot make $BIN_DIR/obfusengine executable"
-    exit 1
+    # Make wrapper executable
+    if ! chmod +x "$BIN_DIR/$wrapper_name" 2>/dev/null; then
+        print_error "Cannot make $BIN_DIR/$wrapper_name executable"
+        return 1
+    fi
+    
+    return 0
 }
 
-chmod +x "$BIN_DIR/obfus" 2>/dev/null || {
-    print_error "Cannot make $BIN_DIR/obfus executable"
+# Create both wrappers
+if create_wrapper "obfusengine" "obfusengine" && create_wrapper "obfus" "obfus"; then
+    print_success "Global wrapper created at $BIN_DIR/obfusengine"
+    print_success "Short alias 'obfus' created"
+else
+    print_error "Failed to create wrapper scripts"
     exit 1
-}
-
-print_success "Global wrapper created at $BIN_DIR/obfusengine"
-print_success "Short alias 'obfus' created"
+fi
 
 # Final verification with better error handling and debugging
 print_status "Verifying installation..."
@@ -383,6 +404,7 @@ echo "  BIN_DIR: $BIN_DIR"
 echo "  INSTALL_DIR: $INSTALL_DIR"
 echo "  obfusengine exists: $(test -f "$BIN_DIR/obfusengine" && echo "YES" || echo "NO")"
 echo "  obfusengine executable: $(test -x "$BIN_DIR/obfusengine" && echo "YES" || echo "NO")"
+echo "  Virtual environment: $(test "$USE_VENV" == "true" && echo "YES" || echo "NO")"
 
 if [[ -f "$BIN_DIR/obfusengine" ]]; then
     if [[ -x "$BIN_DIR/obfusengine" ]]; then
@@ -434,6 +456,7 @@ print_status "Installation Summary:"
 echo "  Installation Path: $INSTALL_DIR"
 echo "  Binary Path: $BIN_DIR/obfusengine"
 echo "  Alias Path: $BIN_DIR/obfus"
+echo "  Virtual Environment: $(test "$USE_VENV" == "true" && echo "Enabled" || echo "Disabled")"
 echo ""
 print_success "Setup completed successfully!"
 
@@ -443,10 +466,11 @@ read -p "Do you want to test the installation? (y/N): " -n 1 -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
     print_status "Testing installation..."
-    if "$BIN_DIR/obfusengine" --version &> /dev/null; then
+    if timeout 10 "$BIN_DIR/obfusengine" --version &> /dev/null; then
         print_success "Installation test passed!"
     else
         print_warning "Installation test failed - but files are installed"
+        print_warning "Try running manually: $BIN_DIR/obfusengine --help"
     fi
 fi
 
