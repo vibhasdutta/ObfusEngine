@@ -306,14 +306,28 @@ if [[ "$USE_VENV" == "true" ]]; then
 #!/bin/bash
 # ObfusEngine Global Wrapper Script (with virtual environment)
 cd "$INSTALL_DIR"
-"$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/ObfusEngine.py" "\$@"
+# Create a temporary script with the correct name for argparse
+cp "$INSTALL_DIR/ObfusEngine.py" "/tmp/obfusengine.py" 2>/dev/null || true
+if [[ -f "/tmp/obfusengine.py" ]]; then
+    "$INSTALL_DIR/venv/bin/python" "/tmp/obfusengine.py" "\$@"
+    rm -f "/tmp/obfusengine.py"
+else
+    "$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/ObfusEngine.py" "\$@"
+fi
 EOF
     
     cat > "$BIN_DIR/obfus" << EOF
 #!/bin/bash
 # ObfusEngine Short Alias (with virtual environment)
 cd "$INSTALL_DIR"
-"$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/ObfusEngine.py" "\$@"
+# Create a temporary script with the correct name for argparse
+cp "$INSTALL_DIR/ObfusEngine.py" "/tmp/obfus.py" 2>/dev/null || true
+if [[ -f "/tmp/obfus.py" ]]; then
+    "$INSTALL_DIR/venv/bin/python" "/tmp/obfus.py" "\$@"
+    rm -f "/tmp/obfus.py"
+else
+    "$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/ObfusEngine.py" "\$@"
+fi
 EOF
 else
     # Use system Python
@@ -321,14 +335,28 @@ else
 #!/bin/bash
 # ObfusEngine Global Wrapper Script
 cd "$INSTALL_DIR"
-python3 "$INSTALL_DIR/ObfusEngine.py" "\$@"
+# Create a temporary script with the correct name for argparse
+cp "$INSTALL_DIR/ObfusEngine.py" "/tmp/obfusengine.py" 2>/dev/null || true
+if [[ -f "/tmp/obfusengine.py" ]]; then
+    python3 "/tmp/obfusengine.py" "\$@"
+    rm -f "/tmp/obfusengine.py"
+else
+    python3 "$INSTALL_DIR/ObfusEngine.py" "\$@"
+fi
 EOF
     
     cat > "$BIN_DIR/obfus" << EOF
 #!/bin/bash
 # ObfusEngine Short Alias
 cd "$INSTALL_DIR"
-python3 "$INSTALL_DIR/ObfusEngine.py" "\$@"
+# Create a temporary script with the correct name for argparse
+cp "$INSTALL_DIR/ObfusEngine.py" "/tmp/obfus.py" 2>/dev/null || true
+if [[ -f "/tmp/obfus.py" ]]; then
+    python3 "/tmp/obfus.py" "\$@"
+    rm -f "/tmp/obfus.py"
+else
+    python3 "$INSTALL_DIR/ObfusEngine.py" "\$@"
+fi
 EOF
 fi
 
