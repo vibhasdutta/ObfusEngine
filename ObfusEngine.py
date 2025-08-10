@@ -419,6 +419,7 @@ class ObfuscationTool:
 
 def setup_argparse():
     parser = argparse.ArgumentParser(
+        prog='obfusengine',
         description="🔒 ObfusEngine v1.0.0 - Advanced Script Obfuscation Engine\nGenerates and obfuscates scripts for red team operations\n\nAuthor: Vibhas Dutta\nGitHub: https://github.com/vibhasdutta/ObfusEngine",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
